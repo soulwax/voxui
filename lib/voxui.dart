@@ -558,7 +558,7 @@ final class VoxUiContext {
   /// Adds a vertical spacing of [amount] pixels.
   void spacing([double amount = 8.0]) {
     _lineMaxY += amount;
-    _cursorY += amount;
+    _cursorY = _lineMaxY + style.itemSpacingY;
   }
 
   /// Draws a horizontal divider line.
@@ -575,6 +575,7 @@ final class VoxUiContext {
       style.separator,
     );
     _lineMaxY = y + 2.0;
+    _cursorY = _lineMaxY + style.itemSpacingY;
   }
 
   /// Displays plain text.
