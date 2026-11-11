@@ -119,6 +119,7 @@ class VoxInput {
   bool wasMouseClicked;
   bool wasMouseReleased;
   double scrollDeltaY;
+  String textInput;
   final Set<String> keysDown;
   final Set<String> keysPressed;
 
@@ -131,6 +132,7 @@ class VoxInput {
     this.wasMouseClicked = false,
     this.wasMouseReleased = false,
     this.scrollDeltaY = 0.0,
+    this.textInput = '',
     Set<String>? keysDown,
     Set<String>? keysPressed,
   })  : keysDown = keysDown ?? <String>{},
@@ -317,6 +319,23 @@ final class VoxStyle {
   VoxColor separator = const VoxColor(45, 50, 62, 255);
   VoxColor headerBg = const VoxColor(38, 44, 56, 255);
 
+  VoxColor tabBg = const VoxColor(32, 36, 46, 255);
+  VoxColor tabActive = const VoxColor(35, 95, 185, 255);
+  VoxColor tabHover = const VoxColor(50, 58, 74, 255);
+
+  VoxColor inputTextBg = const VoxColor(20, 22, 28, 255);
+  VoxColor inputTextBorder = const VoxColor(60, 66, 82, 255);
+  VoxColor inputTextActive = const VoxColor(70, 140, 240, 255);
+
+  VoxColor plotBg = const VoxColor(20, 22, 28, 255);
+  VoxColor plotLine = const VoxColor(240, 200, 60, 255);
+
+  VoxColor popupBg = const VoxColor(28, 30, 38, 250);
+  VoxColor popupBorder = const VoxColor(65, 72, 90, 255);
+
+  VoxColor tooltipBg = const VoxColor(18, 20, 24, 240);
+  VoxColor tooltipBorder = const VoxColor(70, 78, 96, 255);
+
   double windowRounding = 6.0;
   double frameRounding = 4.0;
   double windowPadding = 10.0;
@@ -361,20 +380,38 @@ final class VoxUiContext {
 
   final Map<int, _WindowState> _windows = {};
   final Map<int, bool> _collapsingStates = {};
+  final Map<int, String> _tabBarActiveTabs = {};
+  final Map<int, bool> _comboStates = {};
+  final Set<int> _openPopups = {};
   final List<int> _idStack = [];
 
   _WindowState? _currentWindow;
   double _cursorX = 0.0;
   double _cursorY = 0.0;
   double _lineMaxY = 0.0;
+  double _indent = 0.0;
   bool _sameLineRequested = false;
   double _sameLineSpacing = 0.0;
+
+  bool _lastItemHovered = false;
+  int _focusedInputId = 0;
+  int _currentTabBarId = 0;
+
+  int _columnsCount = 1;
+  int _currentColumn = 0;
+  double _columnWidth = 0.0;
+  double _columnStartX = 0.0;
+  int _frameIndex = 0;
+
+  bool isItemHovered() => _lastItemHovered;
 
   /// Starts a new immediate mode UI frame.
   void beginFrame(VoxInput frameInput) {
     input = frameInput;
     drawList.clear();
     _hoveredId = 0;
+    _lastItemHovered = false;
+    _frameIndex++;
   }
 
   /// Ends the UI frame and finalizes the draw list.
@@ -543,10 +580,50 @@ final class VoxUiContext {
       _lineMaxY = math.max(_lineMaxY, _cursorY + h);
       _sameLineRequested = false;
     } else {
-      _cursorX = (_currentWindow?.x ?? 0.0) + style.windowPadding;
+      if (_columnsCount > 1) {
+        _cursorX = _columnStartX + (_currentColumn * _columnWidth) + style.windowPadding + _indent;
+      } else {
+        _cursorX = (_currentWindow?.x ?? 0.0) + style.windowPadding + _indent;
+      }
       _cursorY = _lineMaxY + style.itemSpacingY;
       _lineMaxY = _cursorY + h;
     }
+  }
+
+  /// Indents subsequent content to the right by [amount] pixels.
+  void indent([double amount = 16.0]) {
+    _indent += amount;
+    _cursorX += amount;
+  }
+
+  /// Unindents subsequent content to the left by [amount] pixels.
+  void unindent([double amount = 16.0]) {
+    _indent = math.max(0.0, _indent - amount);
+    _cursorX = math.max((_currentWindow?.x ?? 0.0) + style.windowPadding, _cursorX - amount);
+  }
+
+  /// Divides the window into [count] parallel layout columns.
+  void columns(int count, {bool border = true}) {
+    _columnsCount = math.max(1, count);
+    _currentColumn = 0;
+    final win = _currentWindow;
+    final totalW = win != null ? (win.width - style.windowPadding * 2) : 300.0;
+    _columnWidth = totalW / _columnsCount;
+    _columnStartX = (_currentWindow?.x ?? 0.0);
+    _cursorX = _columnStartX + style.windowPadding + _indent;
+  }
+
+  /// Advances cursor to the next layout column.
+  void nextColumn() {
+    if (_columnsCount <= 1) return;
+    _currentColumn++;
+    if (_currentColumn >= _columnsCount) {
+      _currentColumn = 0;
+      _cursorY = _lineMaxY + style.itemSpacingY;
+    } else {
+      _cursorY = (_currentWindow?.y ?? 0.0) + style.titleBarHeight + style.windowPadding;
+    }
+    _cursorX = _columnStartX + (_currentColumn * _columnWidth) + style.windowPadding + _indent;
   }
 
   /// Positions the next widget horizontally alongside the previous one.
@@ -612,6 +689,7 @@ final class VoxUiContext {
 
     final rect = VoxRect(_cursorX, _cursorY, w, h);
     final isHovered = rect.contains(input.mouseX, input.mouseY);
+    _lastItemHovered = isHovered;
     if (isHovered) _hoveredId = id;
 
     final isClicked = isHovered && input.wasMouseClicked;
@@ -662,6 +740,7 @@ final class VoxUiContext {
 
     final rect = VoxRect(_cursorX, _cursorY, totalW, h);
     final isHovered = rect.contains(input.mouseX, input.mouseY);
+    _lastItemHovered = isHovered;
     if (isHovered) _hoveredId = id;
 
     var result = value;
@@ -728,6 +807,7 @@ final class VoxUiContext {
 
     final rect = VoxRect(_cursorX, _cursorY, totalW, h);
     final isHovered = rect.contains(input.mouseX, input.mouseY);
+    _lastItemHovered = isHovered;
     if (isHovered) _hoveredId = id;
 
     if (isHovered && input.wasMouseClicked) {
@@ -877,6 +957,366 @@ final class VoxUiContext {
 
     _advanceLayout(w, h);
     return isOpen;
+  }
+
+  /// Displays a floating tooltip box near the mouse cursor if the previous widget was hovered.
+  void tooltip(String text) {
+    if (!_lastItemHovered) return;
+    const padding = 6.0;
+    final textW = text.length * (style.fontSize * 0.6);
+    final textH = style.fontSize + 4.0;
+    final w = textW + padding * 2;
+    final h = textH + padding * 2;
+    final x = input.mouseX + 14.0;
+    final y = input.mouseY + 14.0;
+
+    drawList.addRectFilled(x, y, w, h, style.tooltipBg, cornerRadius: style.frameRounding);
+    drawList.addRectOutline(x, y, w, h, style.tooltipBorder, cornerRadius: style.frameRounding);
+    drawList.addText(text, x + padding, y + padding, color: style.text, size: style.fontSize);
+  }
+
+  /// Interactive single-line text input widget. Returns the updated string.
+  String inputText(
+    String label,
+    String value, {
+    int? maxChars,
+    bool password = false,
+    double? width,
+    double height = 22.0,
+  }) {
+    final id = _getId(label);
+    final win = _currentWindow;
+    final totalW = width ?? (win != null ? (win.width - style.windowPadding * 2) : 200.0);
+    final h = height;
+
+    final rect = VoxRect(_cursorX, _cursorY, totalW, h);
+    final isHovered = rect.contains(input.mouseX, input.mouseY);
+    _lastItemHovered = isHovered;
+
+    if (isHovered && input.wasMouseClicked) {
+      _focusedInputId = id;
+    } else if (input.wasMouseClicked && !isHovered && _focusedInputId == id) {
+      _focusedInputId = 0;
+    }
+
+    var currentVal = value;
+    final isFocused = _focusedInputId == id;
+
+    if (isFocused) {
+      // Process newly typed characters
+      if (input.textInput.isNotEmpty) {
+        if (maxChars == null || currentVal.length + input.textInput.length <= maxChars) {
+          currentVal += input.textInput;
+        }
+      }
+
+      // Handle Backspace
+      if (input.keysPressed.contains('Backspace') && currentVal.isNotEmpty) {
+        currentVal = currentVal.substring(0, currentVal.length - 1);
+      }
+
+      // Blur on Enter or Escape
+      if (input.keysPressed.contains('Enter') || input.keysPressed.contains('Escape')) {
+        _focusedInputId = 0;
+      }
+    }
+
+    // Background
+    drawList.addRectFilled(rect.x, rect.y, rect.width, rect.height, style.inputTextBg, cornerRadius: style.frameRounding);
+    drawList.addRectOutline(
+      rect.x,
+      rect.y,
+      rect.width,
+      rect.height,
+      isFocused ? style.inputTextActive : (isHovered ? style.sliderGrab : style.inputTextBorder),
+      cornerRadius: style.frameRounding,
+    );
+
+    // Text content
+    final displayText = password ? '*' * currentVal.length : currentVal;
+    drawList.addText(
+      displayText,
+      rect.x + 6.0,
+      rect.y + (h - style.fontSize) * 0.5,
+      color: style.text,
+      size: style.fontSize,
+    );
+
+    // Blinking cursor when focused
+    if (isFocused && (_frameIndex % 60 < 30)) {
+      final textW = displayText.length * (style.fontSize * 0.6);
+      final cursorX = rect.x + 6.0 + textW;
+      final cursorY = rect.y + 4.0;
+      drawList.addLine(cursorX, cursorY, cursorX, cursorY + h - 8.0, style.inputTextActive, thickness: 1.5);
+    }
+
+    _advanceLayout(totalW, h);
+    return currentVal;
+  }
+
+  /// Interactive color swatch and RGBA sliders. Returns updated [VoxColor].
+  VoxColor colorEdit4(String label, VoxColor color) {
+    text('$label:');
+    sameLine(spacing: 8.0);
+
+    // Swatch box
+    const swatchSize = 18.0;
+    final swatchRect = VoxRect(_cursorX, _cursorY, swatchSize, swatchSize);
+    drawList.addRectFilled(swatchRect.x, swatchRect.y, swatchRect.width, swatchRect.height, color, cornerRadius: 3.0);
+    drawList.addRectOutline(swatchRect.x, swatchRect.y, swatchRect.width, swatchRect.height, style.windowBorder, cornerRadius: 3.0);
+    _advanceLayout(swatchSize, swatchSize);
+
+    sameLine(spacing: 6.0);
+    final r = sliderInt('R##$label', color.r, min: 0, max: 255, width: 60.0);
+    sameLine(spacing: 4.0);
+    final g = sliderInt('G##$label', color.g, min: 0, max: 255, width: 60.0);
+    sameLine(spacing: 4.0);
+    final b = sliderInt('B##$label', color.b, min: 0, max: 255, width: 60.0);
+    sameLine(spacing: 4.0);
+    final a = sliderInt('A##$label', color.a, min: 0, max: 255, width: 60.0);
+
+    return VoxColor(r, g, b, a);
+  }
+
+  /// Interactive color swatch and RGB sliders. Returns updated [VoxColor].
+  VoxColor colorEdit3(String label, VoxColor color) {
+    final c4 = colorEdit4(label, color.withAlpha(255));
+    return VoxColor(c4.r, c4.g, c4.b, 255);
+  }
+
+  /// Dropdown combo selector. Returns updated [selectedIndex].
+  int combo(String label, int selectedIndex, List<String> items, {double? width}) {
+    final id = _getId(label);
+    final win = _currentWindow;
+    final totalW = width ?? (win != null ? (win.width - style.windowPadding * 2) : 200.0);
+    const h = 22.0;
+
+    final rect = VoxRect(_cursorX, _cursorY, totalW, h);
+    final isHovered = rect.contains(input.mouseX, input.mouseY);
+    _lastItemHovered = isHovered;
+
+    var isOpen = _comboStates[id] ?? false;
+    if (isHovered && input.wasMouseClicked) {
+      isOpen = !isOpen;
+      _comboStates[id] = isOpen;
+    }
+
+    var resultIndex = selectedIndex;
+
+    // Header box
+    drawList.addRectFilled(rect.x, rect.y, rect.width, rect.height, style.buttonBg, cornerRadius: style.frameRounding);
+    drawList.addRectOutline(
+      rect.x,
+      rect.y,
+      rect.width,
+      rect.height,
+      isHovered || isOpen ? style.sliderGrab : style.windowBorder,
+      cornerRadius: style.frameRounding,
+    );
+
+    final selectedText = (selectedIndex >= 0 && selectedIndex < items.length) ? items[selectedIndex] : '';
+    drawList.addText(selectedText, rect.x + 8.0, rect.y + 4.0, color: style.text, size: style.fontSize);
+    drawList.addText('v', rect.right - 16.0, rect.y + 4.0, color: style.titleBarText, size: style.fontSize - 2.0);
+
+    _advanceLayout(totalW, h);
+
+    // Dropdown list popup
+    if (isOpen) {
+      const itemH = 20.0;
+      final popupH = items.length * itemH;
+      final popupY = rect.bottom + 2.0;
+
+      drawList.addRectFilled(rect.x, popupY, rect.width, popupH, style.popupBg, cornerRadius: style.frameRounding);
+      drawList.addRectOutline(rect.x, popupY, rect.width, popupH, style.popupBorder, cornerRadius: style.frameRounding);
+
+      for (int i = 0; i < items.length; i++) {
+        final itemRect = VoxRect(rect.x, popupY + i * itemH, rect.width, itemH);
+        final itemHovered = itemRect.contains(input.mouseX, input.mouseY);
+
+        if (itemHovered) {
+          drawList.addRectFilled(itemRect.x, itemRect.y, itemRect.width, itemRect.height, style.buttonHover);
+        }
+        if (itemHovered && input.wasMouseClicked) {
+          resultIndex = i;
+          _comboStates[id] = false;
+        }
+
+        drawList.addText(
+          items[i],
+          itemRect.x + 8.0,
+          itemRect.y + 3.0,
+          color: i == selectedIndex ? style.checkMark : style.text,
+          size: style.fontSize,
+        );
+      }
+    }
+
+    return resultIndex;
+  }
+
+  /// Begins a horizontal tab bar container.
+  bool beginTabBar(String id) {
+    _currentTabBarId = _getId(id);
+    return true;
+  }
+
+  void endTabBar() {
+    _currentTabBarId = 0;
+  }
+
+  /// Begins a single tab item. Returns `true` if this tab is active and its content should be rendered.
+  bool beginTabItem(String label) {
+    final barId = _currentTabBarId;
+    final activeTab = _tabBarActiveTabs.putIfAbsent(barId, () => label);
+    final isActive = activeTab == label;
+
+    final tabW = label.length * (style.fontSize * 0.6) + 20.0;
+    const tabH = 24.0;
+
+    final rect = VoxRect(_cursorX, _cursorY, tabW, tabH);
+    final isHovered = rect.contains(input.mouseX, input.mouseY);
+    _lastItemHovered = isHovered;
+
+    if (isHovered && input.wasMouseClicked) {
+      _tabBarActiveTabs[barId] = label;
+    }
+
+    final bg = isActive ? style.tabActive : (isHovered ? style.tabHover : style.tabBg);
+    drawList.addRectFilled(rect.x, rect.y, rect.width, rect.height, bg, cornerRadius: style.frameRounding);
+    drawList.addText(
+      label,
+      rect.x + 10.0,
+      rect.y + 5.0,
+      color: isActive ? VoxColor.white : style.text,
+      size: style.fontSize,
+    );
+
+    // Position next tab horizontally
+    sameLine(spacing: 4.0);
+    _advanceLayout(tabW, tabH);
+    return isActive;
+  }
+
+  void endTabItem() {
+    // Closes tab item scope
+  }
+
+  /// Collapsible hierarchical tree node. Returns `true` if open and indents content.
+  bool treeNode(String label, {bool defaultOpen = false}) {
+    final id = _getId(label);
+    const h = 20.0;
+    final w = (label.length + 3) * (style.fontSize * 0.6) + 16.0;
+
+    var isOpen = _collapsingStates.putIfAbsent(id, () => defaultOpen);
+
+    final rect = VoxRect(_cursorX, _cursorY, w, h);
+    final isHovered = rect.contains(input.mouseX, input.mouseY);
+    _lastItemHovered = isHovered;
+
+    if (isHovered && input.wasMouseClicked) {
+      isOpen = !isOpen;
+      _collapsingStates[id] = isOpen;
+    }
+
+    if (isHovered) {
+      drawList.addRectFilled(rect.x, rect.y, rect.width, rect.height, style.buttonHover, cornerRadius: 2.0);
+    }
+
+    final icon = isOpen ? 'v' : '>';
+    drawList.addText(
+      '$icon $label',
+      rect.x + 2.0,
+      rect.y + 2.0,
+      color: isHovered ? VoxColor.white : style.text,
+      size: style.fontSize,
+    );
+
+    _advanceLayout(w, h);
+    if (isOpen) {
+      indent(16.0);
+      return true;
+    }
+    return false;
+  }
+
+  /// Closes an open [treeNode] and restores indentation.
+  void treePop() {
+    unindent(16.0);
+  }
+
+  /// Rolling line graph plot for profiling metrics, frame times, and historical data.
+  void plotLines(
+    String label,
+    List<double> values, {
+    double? min,
+    double? max,
+    double? width,
+    double height = 40.0,
+    String? overlayText,
+  }) {
+    final win = _currentWindow;
+    final totalW = width ?? (win != null ? (win.width - style.windowPadding * 2) : 200.0);
+    final h = height;
+
+    final rect = VoxRect(_cursorX, _cursorY, totalW, h);
+    drawList.addRectFilled(rect.x, rect.y, rect.width, rect.height, style.plotBg, cornerRadius: style.frameRounding);
+    drawList.addRectOutline(rect.x, rect.y, rect.width, rect.height, style.windowBorder, cornerRadius: style.frameRounding);
+
+    if (values.length >= 2) {
+      double minVal = min ?? values.reduce(math.min);
+      double maxVal = max ?? values.reduce(math.max);
+      if (maxVal - minVal < 1e-4) maxVal = minVal + 1.0;
+
+      final stepX = rect.width / (values.length - 1);
+      for (int i = 0; i < values.length - 1; i++) {
+        final t1 = ((values[i] - minVal) / (maxVal - minVal)).clamp(0.0, 1.0);
+        final t2 = ((values[i + 1] - minVal) / (maxVal - minVal)).clamp(0.0, 1.0);
+
+        final x1 = rect.x + i * stepX;
+        final y1 = rect.bottom - (t1 * rect.height);
+        final x2 = rect.x + (i + 1) * stepX;
+        final y2 = rect.bottom - (t2 * rect.height);
+
+        drawList.addLine(x1, y1, x2, y2, style.plotLine, thickness: 1.5);
+      }
+    }
+
+    final overlay = overlayText ?? '$label: ${values.isNotEmpty ? values.last.toStringAsFixed(1) : ""}';
+    drawList.addText(overlay, rect.x + 6.0, rect.y + 4.0, color: VoxColor.white, size: style.fontSize - 2.0);
+
+    _advanceLayout(totalW, h);
+  }
+
+  /// Opens a popup dialog with identifier [id].
+  void openPopup(String id) {
+    _openPopups.add(_getId(id));
+  }
+
+  /// Closes an open popup with identifier [id].
+  void closePopup(String id) {
+    _openPopups.remove(_getId(id));
+  }
+
+  /// Begins a modal or contextual popup. Returns `true` if open.
+  bool beginPopup(String id, {double width = 200.0, double height = 150.0}) {
+    final popupId = _getId(id);
+    if (!_openPopups.contains(popupId)) return false;
+
+    // Center on screen or near mouse
+    final x = math.max(10.0, input.mouseX - width * 0.5);
+    final y = math.max(10.0, input.mouseY - 20.0);
+
+    drawList.addRectFilled(x, y, width, height, style.popupBg, cornerRadius: style.windowRounding);
+    drawList.addRectOutline(x, y, width, height, style.popupBorder, cornerRadius: style.windowRounding);
+
+    _cursorX = x + style.windowPadding;
+    _cursorY = y + style.windowPadding;
+    _lineMaxY = _cursorY;
+    return true;
+  }
+
+  void endPopup() {
+    // Closes popup layout
   }
 }
 

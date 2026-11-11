@@ -134,6 +134,95 @@ void main() {
       ui.endFrame();
     });
 
+    test('inputText receives typing and handles backspace', () {
+      final ui = VoxUiContext();
+
+      // Click to focus input box
+      var input = VoxInput(mouseX: 50, mouseY: 45, wasMouseClicked: true);
+      ui.beginFrame(input);
+      ui.beginWindow('NameEditor', x: 0, y: 0, width: 200, height: 200);
+      var text = ui.inputText('Name', 'Player');
+      ui.endWindow();
+      ui.endFrame();
+
+      // Frame 2: Type '1'
+      input = VoxInput(mouseX: 50, mouseY: 45, textInput: '1');
+      ui.beginFrame(input);
+      ui.beginWindow('NameEditor', x: 0, y: 0, width: 200, height: 200);
+      text = ui.inputText('Name', text);
+      expect(text, equals('Player1'));
+      ui.endWindow();
+      ui.endFrame();
+
+      // Frame 3: Backspace
+      input = VoxInput(mouseX: 50, mouseY: 45, keysPressed: {'Backspace'});
+      ui.beginFrame(input);
+      ui.beginWindow('NameEditor', x: 0, y: 0, width: 200, height: 200);
+      text = ui.inputText('Name', text);
+      expect(text, equals('Player'));
+      ui.endWindow();
+      ui.endFrame();
+    });
+
+    test('combo dropdown selects item', () {
+      final ui = VoxUiContext();
+
+      // Frame 1: Click combo to open dropdown
+      var input = VoxInput(mouseX: 50, mouseY: 45, wasMouseClicked: true);
+      ui.beginFrame(input);
+      ui.beginWindow('Weapons', x: 0, y: 0, width: 200, height: 200);
+      var selected = ui.combo('Weapon', 0, ['Sword', 'Bow', 'Staff']);
+      ui.endWindow();
+      ui.endFrame();
+
+      // Frame 2: Click second item ('Bow', y ~ 45 + 22 + 20)
+      input = VoxInput(mouseX: 50, mouseY: 85, wasMouseClicked: true);
+      ui.beginFrame(input);
+      ui.beginWindow('Weapons', x: 0, y: 0, width: 200, height: 200);
+      selected = ui.combo('Weapon', selected, ['Sword', 'Bow', 'Staff']);
+      expect(selected, equals(1)); // 'Bow' selected
+      ui.endWindow();
+      ui.endFrame();
+    });
+
+    test('TabBar switches active tab item', () {
+      final ui = VoxUiContext();
+
+      var input = VoxInput(mouseX: 0, mouseY: 0);
+      ui.beginFrame(input);
+      ui.beginWindow('Tabs', x: 0, y: 0, width: 200, height: 200);
+      ui.beginTabBar('MainTabs');
+      final isTab1 = ui.beginTabItem('General');
+      ui.endTabItem();
+      final isTab2 = ui.beginTabItem('Audio');
+      ui.endTabItem();
+      ui.endTabBar();
+      ui.endWindow();
+      ui.endFrame();
+
+      expect(isTab1, isTrue); // First tab default active
+      expect(isTab2, isFalse);
+    });
+
+    test('treeNode indents and plotLines records lines', () {
+      final ui = VoxUiContext();
+
+      var input = VoxInput(mouseX: 0, mouseY: 0);
+      ui.beginFrame(input);
+      ui.beginWindow('SceneView', x: 0, y: 0, width: 200, height: 200);
+      final isTreeOpen = ui.treeNode('RootNode', defaultOpen: true);
+      expect(isTreeOpen, isTrue);
+
+      ui.plotLines('FPS', [58.0, 59.0, 60.0, 60.0, 61.0]);
+      ui.treePop();
+
+      ui.endWindow();
+      final dl = ui.endFrame();
+
+      final hasPlotLine = dl.commands.any((cmd) => cmd.type == DrawCmdType.line);
+      expect(hasPlotLine, isTrue);
+    });
+
     test('Collapsing header foldout toggle', () {
       final ui = VoxUiContext();
 
@@ -151,6 +240,95 @@ void main() {
 
       ui.endWindow();
       ui.endFrame();
+    });
+
+    test('inputText receives typing and handles backspace', () {
+      final ui = VoxUiContext();
+
+      // Click to focus input box
+      var input = VoxInput(mouseX: 50, mouseY: 45, wasMouseClicked: true);
+      ui.beginFrame(input);
+      ui.beginWindow('NameEditor', x: 0, y: 0, width: 200, height: 200);
+      var text = ui.inputText('Name', 'Player');
+      ui.endWindow();
+      ui.endFrame();
+
+      // Frame 2: Type '1'
+      input = VoxInput(mouseX: 50, mouseY: 45, textInput: '1');
+      ui.beginFrame(input);
+      ui.beginWindow('NameEditor', x: 0, y: 0, width: 200, height: 200);
+      text = ui.inputText('Name', text);
+      expect(text, equals('Player1'));
+      ui.endWindow();
+      ui.endFrame();
+
+      // Frame 3: Backspace
+      input = VoxInput(mouseX: 50, mouseY: 45, keysPressed: {'Backspace'});
+      ui.beginFrame(input);
+      ui.beginWindow('NameEditor', x: 0, y: 0, width: 200, height: 200);
+      text = ui.inputText('Name', text);
+      expect(text, equals('Player'));
+      ui.endWindow();
+      ui.endFrame();
+    });
+
+    test('combo dropdown selects item', () {
+      final ui = VoxUiContext();
+
+      // Frame 1: Click combo to open dropdown
+      var input = VoxInput(mouseX: 50, mouseY: 45, wasMouseClicked: true);
+      ui.beginFrame(input);
+      ui.beginWindow('Weapons', x: 0, y: 0, width: 200, height: 200);
+      var selected = ui.combo('Weapon', 0, ['Sword', 'Bow', 'Staff']);
+      ui.endWindow();
+      ui.endFrame();
+
+      // Frame 2: Click second item ('Bow', y ~ 45 + 22 + 20)
+      input = VoxInput(mouseX: 50, mouseY: 85, wasMouseClicked: true);
+      ui.beginFrame(input);
+      ui.beginWindow('Weapons', x: 0, y: 0, width: 200, height: 200);
+      selected = ui.combo('Weapon', selected, ['Sword', 'Bow', 'Staff']);
+      expect(selected, equals(1)); // 'Bow' selected
+      ui.endWindow();
+      ui.endFrame();
+    });
+
+    test('TabBar switches active tab item', () {
+      final ui = VoxUiContext();
+
+      var input = VoxInput(mouseX: 0, mouseY: 0);
+      ui.beginFrame(input);
+      ui.beginWindow('Tabs', x: 0, y: 0, width: 200, height: 200);
+      ui.beginTabBar('MainTabs');
+      final isTab1 = ui.beginTabItem('General');
+      ui.endTabItem();
+      final isTab2 = ui.beginTabItem('Audio');
+      ui.endTabItem();
+      ui.endTabBar();
+      ui.endWindow();
+      ui.endFrame();
+
+      expect(isTab1, isTrue); // First tab default active
+      expect(isTab2, isFalse);
+    });
+
+    test('treeNode indents and plotLines records lines', () {
+      final ui = VoxUiContext();
+
+      var input = VoxInput(mouseX: 0, mouseY: 0);
+      ui.beginFrame(input);
+      ui.beginWindow('SceneView', x: 0, y: 0, width: 200, height: 200);
+      final isTreeOpen = ui.treeNode('RootNode', defaultOpen: true);
+      expect(isTreeOpen, isTrue);
+
+      ui.plotLines('FPS', [58.0, 59.0, 60.0, 60.0, 61.0]);
+      ui.treePop();
+
+      ui.endWindow();
+      final dl = ui.endFrame();
+
+      final hasPlotLine = dl.commands.any((cmd) => cmd.type == DrawCmdType.line);
+      expect(hasPlotLine, isTrue);
     });
   });
 }
