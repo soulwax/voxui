@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" width="88" alt="voxui logo"/>
+</p>
+
 # voxui
 
 An immediate-mode graphical user interface library for Dart, inspired by Dear ImGui.
